@@ -1,0 +1,7 @@
+{
+  "name": "Anatomy Guru's AI Grader",
+  "description": "An automated medical academic evaluation system that uses Gemini AI to grade handwritten student answer sheets with strict medical precision.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
