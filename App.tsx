@@ -6,10 +6,10 @@ import Dashboard from './components/Dashboard';
 import Auth from './components/Auth';
 import { UploadedFile, EvaluationReport, HistoryItem, User, BillingInfo } from './types';
 import { evaluateAnswerSheet } from './services/geminiService';
+import { supabase } from './supabase';
 
 const MAX_FILE_SIZE_MB = 3;
 const STORAGE_KEY_PREFIX = 'anatomyguru_user_';
-const AUTH_KEY = 'anatomyguru_auth_session';
 const COST_PER_SHEET = 0.50; // $0.50 per sheet SaaS pricing
 
 type ViewMode = 'uploader' | 'dashboard' | 'report';
@@ -27,13 +27,42 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [hasApiKey, setHasApiKey] = useState(!!process.env.API_KEY);
 
-  // Persistence & Auth Sync
+  // Supabase Auth Listener
   useEffect(() => {
-    const session = localStorage.getItem(AUTH_KEY);
-    if (session) {
-      setCurrentUser(JSON.parse(session));
-    }
-    
+    // Initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setCurrentUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown',
+          organization: 'Medical Faculty',
+          createdAt: new Date(session.user.created_at).getTime(),
+        });
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setCurrentUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Unknown',
+          organization: 'Medical Faculty',
+          createdAt: new Date(session.user.created_at).getTime(),
+        });
+      } else {
+        setCurrentUser(null);
+        setHistory([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // API Key Check
+  useEffect(() => {
     const checkKey = async () => {
       if (window.aistudio?.hasSelectedApiKey) {
         const selected = await window.aistudio.hasSelectedApiKey();
@@ -43,6 +72,7 @@ const App: React.FC = () => {
     checkKey();
   }, []);
 
+  // Load History from LocalStorage (Scoped by Supabase User ID)
   useEffect(() => {
     if (currentUser) {
       const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${currentUser.id}`);
@@ -59,6 +89,7 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
+  // Sync History to LocalStorage
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem(`${STORAGE_KEY_PREFIX}${currentUser.id}`, JSON.stringify(history));
@@ -81,21 +112,9 @@ const App: React.FC = () => {
     };
   };
 
-  const handleLogin = (email: string, name: string) => {
-    const newUser: User = {
-      id: btoa(email), // Mock ID
-      email,
-      name,
-      organization: 'Medical Faculty',
-      createdAt: Date.now()
-    };
-    setCurrentUser(newUser);
-    localStorage.setItem(AUTH_KEY, JSON.stringify(newUser));
-  };
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem(AUTH_KEY);
     setHistory([]);
     setViewMode('uploader');
   };
@@ -209,7 +228,7 @@ const App: React.FC = () => {
   };
 
   if (!currentUser) {
-    return <Auth onLogin={handleLogin} />;
+    return <Auth />;
   }
 
   return (
@@ -241,7 +260,7 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-3 sm:pl-6 sm:border-l sm:border-slate-200">
             <div className="text-right hidden sm:block">
-              <p className="text-[11px] font-black text-[#001219] uppercase leading-none">{currentUser.name}</p>
+              <p className="text-[11px] font-black text-[#001219] uppercase leading-none truncate max-w-[120px]">{currentUser.name}</p>
               <p className="text-[9px] text-[#006a4e] font-black uppercase tracking-widest mt-1">TIER: PRO</p>
             </div>
             <button onClick={handleLogout} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-100 hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center text-slate-400">

@@ -1,19 +1,46 @@
 
 import React, { useState } from 'react';
+import { supabase } from '../supabase';
 
-interface AuthProps {
-  onLogin: (email: string, name: string) => void;
-}
-
-const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(email, name || email.split('@')[0]);
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      if (isLogin) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+      } else {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+            },
+          },
+        });
+        if (signUpError) throw signUpError;
+        setError("Check your email for a confirmation link!");
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -29,6 +56,13 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </p>
         </div>
 
+        {error && (
+          <div className={`mb-6 p-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-3 animate-shake ${error.includes('Check your email') ? 'bg-[#00cc99]/10 text-[#006a4e] border border-[#00cc99]/20' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {!isLogin && (
             <div className="space-y-1">
@@ -38,7 +72,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 required 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base"
+                disabled={loading}
+                className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base disabled:opacity-50"
                 placeholder="Dr. John Doe"
               />
             </div>
@@ -50,7 +85,8 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               required 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base"
+              disabled={loading}
+              className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base disabled:opacity-50"
               placeholder="academic@university.edu"
             />
           </div>
@@ -61,23 +97,27 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               required 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base"
+              disabled={loading}
+              className="w-full px-5 sm:px-6 py-3.5 sm:py-4 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#00cc99]/20 focus:border-[#00cc99] transition-all font-medium text-sm sm:text-base disabled:opacity-50"
               placeholder="••••••••"
             />
           </div>
 
           <button 
             type="submit"
-            className="w-full py-4 sm:py-5 bg-[#001219] hover:bg-[#006a4e] text-white rounded-xl sm:rounded-2xl font-black text-[12px] sm:text-sm uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 mt-4"
+            disabled={loading}
+            className="w-full py-4 sm:py-5 bg-[#001219] hover:bg-[#006a4e] text-white rounded-xl sm:rounded-2xl font-black text-[12px] sm:text-sm uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 mt-4 disabled:opacity-50 flex items-center justify-center gap-3"
           >
+            {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {isLogin ? 'Sign In' : 'Join Network'}
           </button>
         </form>
 
         <div className="mt-8 sm:mt-10 text-center">
           <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-slate-400 font-black text-[9px] sm:text-[10px] uppercase tracking-widest hover:text-[#001219] transition-colors"
+            onClick={() => { setIsLogin(!isLogin); setError(null); }}
+            disabled={loading}
+            className="text-slate-400 font-black text-[9px] sm:text-[10px] uppercase tracking-widest hover:text-[#001219] transition-colors disabled:opacity-50"
           >
             {isLogin ? "New to Anatomy Guru? Register" : "Existing Member? Sign In"}
           </button>
