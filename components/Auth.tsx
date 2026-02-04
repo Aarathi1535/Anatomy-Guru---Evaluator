@@ -9,12 +9,14 @@ const Auth: React.FC = () => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
       if (isLogin) {
@@ -24,7 +26,9 @@ const Auth: React.FC = () => {
         });
         if (signInError) throw signInError;
       } else {
-        const { error: signUpError } = await supabase.auth.signUp({
+        // NOTE: To completely stop Supabase from sending emails, 
+        // you must disable "Confirm email" in your Supabase Project Settings.
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -33,8 +37,18 @@ const Auth: React.FC = () => {
             },
           },
         });
+        
         if (signUpError) throw signUpError;
-        setError("Check your email for a confirmation link!");
+
+        if (data.session) {
+          // If email confirmation is disabled in Supabase, we get a session immediately.
+          // The App.tsx listener will handle the redirect.
+          setSuccess("Welcome! Account created.");
+        } else {
+          // If email confirmation is enabled in Supabase, the user is created but needs to wait.
+          setSuccess("Account created successfully! Proceed to Sign In.");
+          setIsLogin(true); // Switch to login mode for convenience
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred during authentication.');
@@ -57,9 +71,16 @@ const Auth: React.FC = () => {
         </div>
 
         {error && (
-          <div className={`mb-6 p-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-3 animate-shake ${error.includes('Check your email') ? 'bg-[#00cc99]/10 text-[#006a4e] border border-[#00cc99]/20' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+          <div className="mb-6 p-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-3 animate-shake bg-red-50 text-red-600 border border-red-100">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 p-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-3 animate-in fade-in bg-[#00cc99]/10 text-[#006a4e] border border-[#00cc99]/20">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+            {success}
           </div>
         )}
 
@@ -115,7 +136,7 @@ const Auth: React.FC = () => {
 
         <div className="mt-8 sm:mt-10 text-center">
           <button 
-            onClick={() => { setIsLogin(!isLogin); setError(null); }}
+            onClick={() => { setIsLogin(!isLogin); setError(null); setSuccess(null); }}
             disabled={loading}
             className="text-slate-400 font-black text-[9px] sm:text-[10px] uppercase tracking-widest hover:text-[#001219] transition-colors disabled:opacity-50"
           >
