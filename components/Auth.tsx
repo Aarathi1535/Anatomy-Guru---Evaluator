@@ -50,9 +50,7 @@ const Auth: React.FC = () => {
           setIsLogin(true); // Switch to login mode for convenience
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication.');
-    } finally {
+    }  finally {
       setLoading(false);
     }
   };
